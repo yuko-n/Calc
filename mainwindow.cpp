@@ -12,9 +12,15 @@
 #include <QToolButton>
 #include <QFont>
 #include <QLabel>
+#include <iostream>
 
 double num_first;
+bool waitingForOperand = true;
 QString all;
+QString pendingAdditiveOperator;
+QString pendingMultiplicativeOperator;
+double sumSoFar = 0.0;
+double factorSoFar = 0.0;
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent)
@@ -22,15 +28,18 @@ MainWindow::MainWindow(QWidget *parent) :
     QGridLayout *grid = new QGridLayout;
     QVBoxLayout *label_lay = new  QVBoxLayout;
     QHBoxLayout *clear_lay = new  QHBoxLayout;
-    line_1 = new QLabel(this);
-    line_2 = new QLabel(this);
+    line_1 = new QLineEdit("0");
+    line_2 = new QLineEdit("0");
+    line_buff = new QLineEdit("0");
+    line_1->setReadOnly(true);
+    line_2->setReadOnly(true);
     QPushButton *clear = new QPushButton(this);
     QPushButton *del = new QPushButton(this);
+    connect(clear, SIGNAL(clicked()), this, SLOT(clearAll()));
+    connect(del, SIGNAL(clicked()), this, SLOT(del()));
 
-    //line -> setReadOnly(true);
-    line_1 -> setStyleSheet("QLabel {background-color: white}");
-    line_2 -> setStyleSheet("QLabel {background-color: white}");
-   // line -> setMaxLength(10);
+    line_1 -> setStyleSheet("QLineEdit {background-color: white}");
+    line_2 -> setStyleSheet("QLineEdit {background-color: gray}");
     line_1 -> setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     line_2 -> setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
@@ -81,9 +90,10 @@ MainWindow::MainWindow(QWidget *parent) :
           digitButtons[i]->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
           digitButtons[i]->setText(values[i]);
           digitButtons[i]->setFont(QFont("consolas", 9));
-          if (i!=3 && i!=7 && i!=11 && i<13)    connect(digitButtons[i], SIGNAL(clicked()), this, SLOT(digits_numbers()));
-          else   connect(digitButtons[i], SIGNAL(clicked()), this, SLOT(operations()));
-          digitButtons[3]->setCheckable(true);
+          if (i!=3 && i!=7 && i!=11 && i<13)    connect(digitButtons[i], SIGNAL(clicked()), this, SLOT(digitClicked()));
+          else if (i==3 || i==7) connect(digitButtons[i], SIGNAL(clicked()), this, SLOT(additiveOperatorClicked()));
+          else if (i==14 || i==11) connect(digitButtons[i], SIGNAL(clicked()), this, SLOT(multiplicativeOperatorClicked()));
+          else if (i==15) connect(digitButtons[i], SIGNAL(clicked()), this, SLOT(equalClicked()));
           buttons->addButton(digitButtons[i], i);
       }
     int pos = 0;
@@ -103,48 +113,135 @@ MainWindow::MainWindow(QWidget *parent) :
     central -> setMinimumSize(300, 300);
     central->setLayout(label_lay);
     setCentralWidget(central);
-    //connect(digitButtons[0], SIGNAL(clicked()), this, SLOT(digits_numbers()));
-    //on_button_clicked(digitButtons);
 }
 
-void MainWindow::digits_numbers()
+void MainWindow::digitClicked()
 {
-    QPushButton *button = (QPushButton *)sender();
-    double all_numbers;
-    QString new_label;
-    all+=button->text();
-    line_1->setText(all);
-}
+    QPushButton *clickedButton = (QPushButton *)sender();
+    all+=clickedButton->text();
+    int digitValue = clickedButton->text().toInt();
+    if (line_buff->text() == "0" && digitValue == 0.0)
+        return;
 
-void MainWindow::operations()
-{
-    QPushButton *button = (QPushButton *)sender();
-    //QString new_label;
-
-    num_first = line_1->text().toDouble();
-    button->setChecked(true);
-    //all_operations = (line_1->text() + button->text());
-    //new_label = (all_operations);
-    all+=button->text();
-    line_1->setText(all);
-    //line_2->setText(QString::number(num_first));
-}
-
-/*void MainWindow::on_button_clicked(QPushButton *digitButtons) {
-    double labelNumber, num_second;
-    int step;
-    QString new_label;
-
-    num_second = line_2->text().toDouble();
-    step = line_2->text().toInt();
-
-    if(digitButtons[3]->isChecked()){
-        labelNumber = num_first + num_second;
-        new_label = QString::number(labelNumber, 'g', 15);
-        line_2->setText(new_label);
-        digitButtons[3]->setChecked(false);
+    if (waitingForOperand) {
+        line_buff->clear();
+        waitingForOperand = false;
     }
-}*/
+    line_buff->setText(line_buff->text() + QString::number(digitValue));
+    line_1->setText(all);
+}
+bool MainWindow::calculate(double rightOperand, const QString &pendingOperator)
+{
+    if (pendingOperator == "+") {
+        sumSoFar += rightOperand;
+    } else if (pendingOperator == "-") {
+        sumSoFar -= rightOperand;
+    } else if (pendingOperator == "*") {
+        factorSoFar *= rightOperand;
+    } else if (pendingOperator == "/") {
+        if (rightOperand == 0.0)
+            return false;
+        factorSoFar /= rightOperand;
+    }
+    return true;
+}
+
+void MainWindow::additiveOperatorClicked()
+ {
+     QPushButton *clickedButton = (QPushButton *)sender();
+     all+=clickedButton->text();
+     QString clickedOperator = clickedButton->text();
+     double operand = line_buff->text().toDouble();
+     if (!pendingMultiplicativeOperator.isEmpty()) {
+         if (!calculate(operand, pendingMultiplicativeOperator)) {
+             line_2->setText(tr("####"));
+             return;
+         }
+         line_buff->setText(QString::number(factorSoFar));
+         operand = factorSoFar;
+         factorSoFar = 0.0;
+         pendingMultiplicativeOperator.clear();
+     }
+     if (!pendingAdditiveOperator.isEmpty()) {
+             if (!calculate(operand, pendingAdditiveOperator)) {
+                 line_2->setText(tr("####"));
+                 return;
+             }
+     line_2->setText(QString::number(sumSoFar));
+     } else {
+              sumSoFar = operand;
+          }
+     pendingAdditiveOperator = clickedOperator;
+     waitingForOperand = true;
+}
+
+void MainWindow::multiplicativeOperatorClicked()
+{
+    QPushButton *clickedButton = (QPushButton *)sender();
+    all+=clickedButton->text();
+    QString clickedOperator = clickedButton->text();
+    double operand = line_buff->text().toDouble();
+
+    if (!pendingMultiplicativeOperator.isEmpty()) {
+        if (!calculate(operand, pendingMultiplicativeOperator)) {
+            line_2->setText(tr("####"));
+            return;
+        }
+        line_2->setText(QString::number(factorSoFar));
+    } else {
+        factorSoFar = operand;
+    }
+
+    pendingMultiplicativeOperator = clickedOperator;
+    waitingForOperand = true;
+}
+
+void MainWindow::equalClicked()
+{
+    double operand = line_buff->text().toDouble();
+
+    if (!pendingMultiplicativeOperator.isEmpty()) {
+        if (!calculate(operand, pendingMultiplicativeOperator)) {
+            line_2->setText(tr("####"));
+            return;
+        }
+        operand = factorSoFar;
+        factorSoFar = 0.0;
+        pendingMultiplicativeOperator.clear();
+    }
+    if (!pendingAdditiveOperator.isEmpty()) {
+        if (!calculate(operand, pendingAdditiveOperator)) {
+            line_2->setText(tr("####"));
+            return;
+        }
+        pendingAdditiveOperator.clear();
+    } else {
+        sumSoFar = operand;
+    }
+
+    line_2->setText(QString::number(sumSoFar));
+    line_1->setText(all);
+    sumSoFar = 0.0;
+    waitingForOperand = true;
+}
+
+void MainWindow::del()
+{
+    line_1->setText("0");
+    line_buff->setText("0");
+}
+
+void MainWindow::clearAll()
+{
+    sumSoFar = 0.0;
+    factorSoFar = 0.0;
+    pendingAdditiveOperator.clear();
+    pendingMultiplicativeOperator.clear();
+    line_1->clear();
+    line_2->clear();
+    line_buff->clear();
+    waitingForOperand = true;
+}
 MainWindow::~MainWindow()
 {
 }
