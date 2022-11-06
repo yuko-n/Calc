@@ -1,20 +1,14 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include <QTextEdit>
 #include <QLineEdit>
 #include <QVBoxLayout>
-#include <QAbstractButton>
 #include <QButtonGroup>
 #include <QPushButton>
 #include <QHBoxLayout>
-#include <QListWidget>
 #include <QGridLayout>
-#include <QToolButton>
 #include <QFont>
 #include <QLabel>
-#include <iostream>
 
-double num_first;
 bool waitingForOperand = true;
 QString all;
 QString pendingAdditiveOperator;
@@ -38,8 +32,8 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(clear, SIGNAL(clicked()), this, SLOT(clearAll()));
     connect(del, SIGNAL(clicked()), this, SLOT(del()));
 
-    line_1 -> setStyleSheet("QLineEdit {background-color: white}");
-    line_2 -> setStyleSheet("QLineEdit {background-color: gray}");
+    line_1 -> setStyleSheet("QLineEdit {background-color: rgb(242, 244, 243); border: 1px solid rgb(242, 244, 243)}");
+    line_2 -> setStyleSheet("QLineEdit {background-color: rgb(127, 124, 136); border: 1px solid rgb(127, 124, 136)}");
     line_1 -> setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     line_2 -> setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
@@ -92,8 +86,10 @@ MainWindow::MainWindow(QWidget *parent) :
           digitButtons[i]->setFont(QFont("consolas", 9));
           if (i!=3 && i!=7 && i!=11 && i<13)    connect(digitButtons[i], SIGNAL(clicked()), this, SLOT(digitClicked()));
           else if (i==3 || i==7) connect(digitButtons[i], SIGNAL(clicked()), this, SLOT(additiveOperatorClicked()));
+          else if (i==13) connect(digitButtons[i], SIGNAL(clicked()), this, SLOT(pointClicked()));
           else if (i==14 || i==11) connect(digitButtons[i], SIGNAL(clicked()), this, SLOT(multiplicativeOperatorClicked()));
           else if (i==15) connect(digitButtons[i], SIGNAL(clicked()), this, SLOT(equalClicked()));
+          else if (i>15) connect(digitButtons[i], SIGNAL(clicked()), this, SLOT(unaryOperatorClicked()));
           buttons->addButton(digitButtons[i], i);
       }
     int pos = 0;
@@ -144,6 +140,70 @@ bool MainWindow::calculate(double rightOperand, const QString &pendingOperator)
         factorSoFar /= rightOperand;
     }
     return true;
+}
+
+int MainWindow::fact(double n)
+{
+    int f=1, i;
+    for(i = 2; i<=n; ++i) {
+        f=f*i;
+    }
+    return f;
+}
+
+void MainWindow::unaryOperatorClicked()
+{
+    QPushButton *clickedButton = (QPushButton *)sender();
+    QString clickedOperator = clickedButton->text();
+    double operand = line_1->text().toDouble();
+    double result = 0.0;
+
+    if (clickedOperator == ("√n")) {
+        if (operand < 0.0) {
+            line_2->setText(tr("####"));
+            return;
+        }
+        result = sqrt(operand);
+    }
+    else if (clickedOperator == ("n^2")) {
+        result = pow(operand, 2.0);
+    }
+    else if (clickedOperator == ("n!")) {
+        if (operand == 0.0) {
+            line_2->setText(tr("####"));
+            return;
+        }
+        result = fact(operand);
+    }
+    else if (clickedOperator == ("log n")) {
+            if (operand == 0.0) {
+                line_2->setText(tr("####"));
+                return;
+            }
+            result = log(operand);
+        }
+    else if (clickedOperator == ("sin n")) {
+            result = sin(operand);
+        }
+    else if (clickedOperator == ("cos n")) {
+            result = cos(operand);
+        }
+    else if (clickedOperator == ("tg n")) {
+            if (operand == 0.0) {
+                line_2->setText(tr("####"));
+                return;
+            }
+            result = tan(operand);
+        }
+    else if (clickedOperator == ("ctg n")) {
+            if (operand == 0.0) {
+                line_2->setText(tr("####"));
+                return;
+            }
+            result = 1/tan(operand);
+        }
+    line_2->setText(QString::number(result));
+    waitingForOperand = true;
 }
 
 void MainWindow::additiveOperatorClicked()
@@ -225,16 +285,38 @@ void MainWindow::equalClicked()
     waitingForOperand = true;
 }
 
+void MainWindow::pointClicked()
+{
+    if (waitingForOperand)
+        line_1->setText("0");
+    if (!line_1->text().contains(".")){
+        line_1->setText(line_1->text() + ("."));
+        line_buff->setText(line_buff->text() + ("."));
+        all+=".";
+    }
+    waitingForOperand = false;
+}
 void MainWindow::del()
 {
-    line_1->setText("0");
-    line_buff->setText("0");
+     if (waitingForOperand)
+         return;
+
+     QString text = line_buff->text();
+     text.chop(1);
+     all.chop(1);
+     if (text.isEmpty()) {
+         text = "0";
+         waitingForOperand = true;
+     }
+     line_1->setText(text);
+     line_buff->setText(text);
 }
 
 void MainWindow::clearAll()
 {
     sumSoFar = 0.0;
     factorSoFar = 0.0;
+    all.clear();
     pendingAdditiveOperator.clear();
     pendingMultiplicativeOperator.clear();
     line_1->clear();

@@ -20,11 +20,15 @@ public:
     void digits_numbers();
     void operations();
     void digitClicked();
+    void unaryOperatorClicked();
     void additiveOperatorClicked();
     void multiplicativeOperatorClicked();
     void equalClicked();
     void del();
     void clearAll();
+    void pointClicked();
+    int fact(double n);
+    //void clear();
 private:
     void abortOperation();
     bool calculate(double rightOperand, const QString &pendingOperator);
